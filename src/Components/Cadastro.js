@@ -17,8 +17,11 @@ class Cadastro extends Component
     {
         navigator.mediaDevices.getUserMedia({video: true})
             .then((stream) => {
-                this.video.current.srcObject = stream;
-                this.video.current.play();
+                if (this.video)
+                {
+                    this.video.current.srcObject = stream;
+                    this.video.current.play();
+                }
             });
     }
     render()
@@ -54,7 +57,7 @@ class Cadastro extends Component
         event.preventDefault();
 
         this.props.history.push({
-            pathname: 'conferencia',
+            pathname: '/conferencia',
             state: {
                 nome: this.state.nome,
                 cor: this.state.cor,

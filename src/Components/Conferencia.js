@@ -35,6 +35,8 @@ class Conferencia extends Component
 
         this.video = React.createRef();
 
+        this.selecionado = React.createRef();
+
         this.state = {inscricoes: []};
     
         this.state = Object.assign(this.state, this.props.location.state);
@@ -48,7 +50,7 @@ class Conferencia extends Component
 
         if(this.state.cor === '' || typeof this.state.cor === 'undefined')
         {
-            this.props.history.push('cadastro');
+            this.props.history.push('/cadastro');
 
             return;
         }
@@ -58,12 +60,9 @@ class Conferencia extends Component
     componentDidMount()
     {
         navigator.mediaDevices.getUserMedia({video: true}).then((stream) => {
-            if (this.video)
-            {
-                this.video.current.srcObject = stream;
-                this.video.current.play();
-            }
-        })
+            this.video.current.srcObject = stream;
+            this.video.current.play();
+        });
     }
     render()
     {
@@ -72,7 +71,7 @@ class Conferencia extends Component
         this.state.inscricoes.forEach((item, indice) => {
 
             conectados.push(
-                <div className="Item" key={indice}>
+                <div className="Item" key={indice} onClick={this.onSeleciona.bind(this, item.id)}>
                             
                     <div className="Item-Video">
                         <Video inscricao={item} />
@@ -91,13 +90,13 @@ class Conferencia extends Component
             <div className="Conferencia">
                 
                 <div className="Video">
-                    <img src='https://picsum.photos/800/800'/>
+                    <video ref={this.selecionado}/>
                 </div>
 
                 <div className="Convidados">
                     <div className="Fixado">
 
-                        <div className="Item">
+                        <div className="Item" onClick={this.onSeleciona.bind(this, this.state.id)}>
                             
                             <div className="Item-Destaque-Portrait" style={{borderColor: 'transparent '+this.state.cor+' transparent transparent'}}></div>
 
@@ -123,13 +122,22 @@ class Conferencia extends Component
             </div>
         );
     }
+    onSeleciona(id)
+    {
+        this.signaling.send(
+            JSON.stringify({
+                evento: 'selecionado',
+                id: id,
+            })
+        );
+    }
     onSignaling()
     {
         let nome = this.state.nome;
 
         let cor = this.state.cor.substring(1, this.state.cor.length);
 
-        let protocol = 'ws';
+        let protocol = 'wss';
 
         let host = window.location.hostname || 'localhost';
 
@@ -164,6 +172,12 @@ class Conferencia extends Component
 
             switch (parametros.evento)
             {
+                case 'identificacao':
+
+                    this.setState({id: parametros.id})
+
+                    break;
+
                 case 'criacao':
 
                     inscricao = {
@@ -226,7 +240,9 @@ class Conferencia extends Component
 
                 case 'oferta':
 
-                    inscricao = this.state.inscricoes.find((item) =>
+                    inscricoes = this.state.inscricoes; 
+
+                    inscricao = inscricoes.find((item) =>
                     {
                         return item.id === parametros.id
                     });
@@ -252,15 +268,13 @@ class Conferencia extends Component
 
                     inscricao.remoto = remoto;
 
-                    inscricoes = this.state.inscricoes;
-
-                    inscricoes[indice] = inscricao;
-
                     this.setState({inscricoes});
 
                     break;
 
                 case 'resposta':
+
+                    inscricoes = this.state.inscricoes; 
 
                     inscricao = this.state.inscricoes.find((item) =>
                     {
@@ -269,15 +283,13 @@ class Conferencia extends Component
 
                     inscricao.local.setRemoteDescription(parametros.resposta);
 
-                    inscricoes = this.state.inscricoes;
-
-                    inscricoes[indice] = inscricao;
-
                     this.setState({inscricoes});
 
                     break;
 
                 case 'candidato':
+
+                    inscricoes = this.state.inscricoes; 
 
                     inscricao = this.state.inscricoes.find((item) =>
                     {
@@ -286,15 +298,45 @@ class Conferencia extends Component
 
                     inscricao.remoto.addIceCandidate(parametros.candidato);
 
-                    inscricoes = this.state.inscricoes;
-
-                    inscricoes[indice] = inscricao;
-
                     this.setState({inscricoes});
 
                     break;
+
+                case 'desconectado':
+
+                    inscricoes = this.state.inscricoes.filter((item) =>
+                    {
+                        return item.id !== parametros.id
+                    });
+
+                    this.setState({inscricoes});                
                 
                 case 'selecionado':
+
+                    if (parametros.id == this.state.id)
+                    {
+                        navigator.mediaDevices.getUserMedia({video: true}).then((stream) =>
+                        {
+                            this.selecionado.current.srcObject = stream;
+                            this.selecionado.current.play();
+                        });
+
+                    } else {
+
+                        inscricao = this.state.inscricoes.find((item) =>
+                        {
+                            return item.id === parametros.id
+                        });
+
+                        if (inscricao && inscricao.remoto)
+                        {
+                            inscricao.remoto.ontrack = (event) =>
+                            {
+                                this.selecionado.current.srcObject = event.streams[0];
+                                this.selecionado.current.play();
+                            };
+                        }
+                    }
 
                     break;
             }
